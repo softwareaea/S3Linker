@@ -102,8 +102,13 @@ namespace S3Linker
                 };
             }
 
-            string s3prefix = folder.Prefix + "/" + WebUtility.UrlDecode(folderPath);
-            if (folderPath.Length > 0 && folderPath[folderPath.Length - 1] != '/')
+            string s3prefix = folder.Prefix;
+            if (folderPath.Length > 0)
+            {
+                s3prefix+="/" + WebUtility.UrlDecode(folderPath);
+                
+            }
+            if (s3prefix[s3prefix.Length - 1] != '/')
                 s3prefix += "/";
             context.Logger.LogLine($"S3 prefix: {s3prefix}");
             List<Entry> result = new List<Entry>();
@@ -127,13 +132,13 @@ namespace S3Linker
                     foreach (S3Object s3object in s3response.S3Objects)
                     {
                         context.Logger.LogLine($"Key: {s3object.Key}");
-                        string relativePath = s3object.Key.Substring(s3prefix.Length-1);
+                        string relativePath = s3object.Key.Substring(s3prefix.Length);
                         context.Logger.LogLine($"Relative path: {relativePath}");
-                        if (relativePath == "/") continue; //current folder 
+                        if (relativePath == "") continue; //current folder 
                        
                         
                         int idx = relativePath.LastIndexOf("/");
-                        if (idx == 0) //file in current folder
+                        if (idx < 0) //file in current folder
                         {
                             context.Logger.LogLine($"This is a file:");
                             GetPreSignedUrlRequest presignedRequest = new GetPreSignedUrlRequest()
@@ -145,21 +150,27 @@ namespace S3Linker
                             Entry entry = new Entry {
                                 RelativePath = relativePath,
                                 Url = client.GetPreSignedURL(presignedRequest),
-                                IsFolder = false
+                                IsFolder = false,
+                                FileSize = s3object.Size
                             };
                             result.Add(entry);
                         }
-                        else
+                        else//subfolder
                         {
-                            int idx2 = relativePath.IndexOf("/", 1);//second "/"
-                            string folderName = relativePath.Substring(1, idx2 - 1);
+                            int idx2 = relativePath.IndexOf("/");
+                            string folderName = relativePath;
+                            if(idx2>0) folderName = relativePath.Substring(0, idx2);
+                            context.Logger.LogLine($"Folder name:{folderName}");
                             if (!folders.Contains(folderName))
                             {
                                 folders.Add(folderName);
+                                string url = $"{baseUrl}/{folderId}";
+                                if (folderPath.Length > 0) url += $"/{folderPath}";
+                                url += $"/{WebUtility.UrlEncode(folderName)}";
                                 Entry entry = new Entry
                                 {
                                     RelativePath = folderName,
-                                    Url = $"{baseUrl}/{folderId}/{folderPath}/{WebUtility.UrlEncode(folderName)}",
+                                    Url = url,
                                     IsFolder = true
                                 };
                                 result.Add(entry);
@@ -176,7 +187,15 @@ namespace S3Linker
                         break;
                 } 
             }
-
+            //folders first, alphabeticaly
+            //then files, alphabeticaly 
+            result.Sort((entry1, entry2) => {
+                if (entry1.IsFolder == entry2.IsFolder)
+                    return entry1.RelativePath.CompareTo(entry2.RelativePath);
+                if (entry1.IsFolder)
+                    return -1;
+                return 1;
+            });
 
             var response = new APIGatewayProxyResponse
             {
