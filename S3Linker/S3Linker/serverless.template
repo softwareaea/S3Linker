@@ -1,0 +1,224 @@
+{
+  "AWSTemplateFormatVersion": "2010-09-09",
+  "Transform": "AWS::Serverless-2016-10-31",
+  "Description": "AWS S3 linker.",
+  "Parameters": {
+    "ShouldCreateTable": {
+      "Type": "String",
+      "AllowedValues": [ "true", "false" ],
+      "Description": "If true then the DynamoDB table will be created with the CloudFormation stack."
+    },
+    "FolderTableName": {
+      "Type": "String",
+      "Description": "Name of DynamoDB table used to store folders. If left blank a new table will be created.",
+      "MinLength": "0"
+    },
+    "ReadCapacity": {
+      "Type": "Number",
+      "Description": "Read capacity for the DynamoDB folder table.",
+      "Default": "3",
+      "MinValue": 1
+    },
+    "WriteCapacity": {
+      "Type": "Number",
+      "Description": "Write capacity for the DynamoDB folder table.",
+      "Default": "3",
+      "MinValue": 1
+    }
+  },
+
+  "Conditions": {
+    "CreateFolderTable": {
+      "Fn::Equals": [
+        { "Ref": "ShouldCreateTable" },
+        "true"
+      ]
+    },
+    "TableNameGenerated": {
+      "Fn::Equals": [
+        { "Ref": "FolderTableName" },
+        ""
+      ]
+    }
+  },
+
+  "Resources": {
+
+    "GetFolder": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "S3Linker::S3Linker.Functions::GetFolderAsync",
+        "Runtime": "dotnetcore1.0",
+        "CodeUri": "",
+        "Description": "Function to get a folder",
+        "MemorySize": 256,
+        "Timeout": 30,
+        "Role": null,
+        "Policies": [ "AWSLambdaFullAccess" ],
+        "Environment": {
+          "Variables": {
+            "FolderTable": {
+              "Fn::If": [
+                "CreateFolderTable",
+                { "Ref": "FolderTable" },
+                { "Ref": "FolderTableName" }
+              ]
+            }
+          }
+        },
+        "Events": {
+          "PutResource": {
+            "Type": "Api",
+            "Properties": {
+              "Path": "/{Id}",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+
+    "GetSubFolder": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "S3Linker::S3Linker.Functions::GetFolderAsync",
+        "Runtime": "dotnetcore1.0",
+        "CodeUri": "",
+        "Description": "Function to get a folder",
+        "MemorySize": 256,
+        "Timeout": 30,
+        "Role": null,
+        "Policies": [ "AWSLambdaFullAccess" ],
+        "Environment": {
+          "Variables": {
+            "FolderTable": {
+              "Fn::If": [
+                "CreateFolderTable",
+                { "Ref": "FolderTable" },
+                { "Ref": "FolderTableName" }
+              ]
+            }
+          }
+        },
+        "Events": {
+          "PutResource": {
+            "Type": "Api",
+            "Properties": {
+              "Path": "/{Id}/{Path+}",
+              "Method": "GET"
+            }
+          }
+        }
+      }
+    },
+    "AddFolder": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "S3Linker::S3Linker.Functions::AddFolderAsync",
+        "Runtime": "dotnetcore1.0",
+        "CodeUri": "",
+        "Description": "Function to get add a folder",
+        "MemorySize": 256,
+        "Timeout": 30,
+        "Role": null,
+        "Policies": [ "AWSLambdaFullAccess" ],
+        "Environment": {
+          "Variables": {
+            "FolderTable": {
+              "Fn::If": [
+                "CreateFolderTable",
+                { "Ref": "FolderTable" },
+                { "Ref": "FolderTableName" }
+              ]
+            }
+          }
+        },
+        "Events": {
+          "PutResource": {
+            "Type": "Api",
+            "Properties": {
+              "Path": "/",
+              "Method": "POST"
+            }
+          }
+        }
+      }
+    },
+
+    "RemoveFolder": {
+      "Type": "AWS::Serverless::Function",
+      "Properties": {
+        "Handler": "S3Linker::S3Linker.Functions::RemoveFolderAsync",
+        "Runtime": "dotnetcore1.0",
+        "CodeUri": "",
+        "Description": "Function to remove a folder",
+        "MemorySize": 256,
+        "Timeout": 30,
+        "Role": null,
+        "Policies": [ "AWSLambdaFullAccess" ],
+        "Environment": {
+          "Variables": {
+            "FolderTable": {
+              "Fn::If": [
+                "CreateFolderTable",
+                { "Ref": "FolderTable" },
+                { "Ref": "FolderTableName" }
+              ]
+            }
+          }
+        },
+        "Events": {
+          "PutResource": {
+            "Type": "Api",
+            "Properties": {
+              "Path": "/{Id}",
+              "Method": "DELETE"
+            }
+          }
+        }
+      }
+    },
+
+    "FolderTable": {
+      "Type": "AWS::DynamoDB::Table",
+      "Condition": "CreateFolderTable",
+      "Properties": {
+        "TableName": {
+          "Fn::If": [
+            "TableNameGenerated",
+            { "Ref": "AWS::NoValue" },
+            { "Ref": "FolderTableName" }
+          ]
+        },
+        "AttributeDefinitions": [
+          {
+            "AttributeName": "Id",
+            "AttributeType": "S"
+          }
+        ],
+        "KeySchema": [
+          {
+            "AttributeName": "Id",
+            "KeyType": "HASH"
+          }
+        ],
+        "ProvisionedThroughput": {
+          "ReadCapacityUnits": { "Ref": "ReadCapacity" },
+          "WriteCapacityUnits": { "Ref": "WriteCapacity" }
+        }
+      }
+    }
+  },
+
+  "Outputs": {
+    "FolderTable": {
+      "Value": {
+        "Fn::If": [
+          "CreateFolderTable",
+          { "Ref": "FolderTable" },
+          { "Ref": "FolderTableName" }
+        ]
+      }
+    }
+  }
+}
