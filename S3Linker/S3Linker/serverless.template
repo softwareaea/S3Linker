@@ -70,7 +70,7 @@
           "PutResource": {
             "Type": "Api",
             "Properties": {
-              "Path": "/{Id}",
+              "Path": "/{Format}/{Id}",
               "Method": "GET"
             }
           }
@@ -104,7 +104,7 @@
           "PutResource": {
             "Type": "Api",
             "Properties": {
-              "Path": "/{Id}/{Path+}",
+              "Path": "/{Format}/{Id}/{Path+}",
               "Method": "GET"
             }
           }
@@ -171,7 +171,7 @@
           "PutResource": {
             "Type": "Api",
             "Properties": {
-              "Path": "/{Id}",
+              "Path": "/{Format}/{Id}",
               "Method": "DELETE"
             }
           }
