@@ -283,7 +283,12 @@ namespace S3Linker
         {
             var folder = JsonConvert.DeserializeObject<Folder>(request?.Body);
             folder.Id = Guid.NewGuid().ToString("N");//just 32 digits, no hyphens, no curly brackets
-            folder.ExpirationTime = DateTime.Now + TimeSpan.FromDays(3);
+            if (folder.ExpirationTime < DateTime.Now)
+                return new APIGatewayProxyResponse
+                {
+                    StatusCode = (int)HttpStatusCode.BadRequest,
+                    Body = "Invalid expiration time"
+                };
             //prefix must not start and end with '/' as welll as spaces
             folder.Prefix = folder.Prefix.Trim(new char[]{' ', '/'});
 
@@ -305,26 +310,19 @@ namespace S3Linker
         /// <param name="request"></param>
         public async Task<APIGatewayProxyResponse> RemoveFolderAsync(APIGatewayProxyRequest request, ILambdaContext context)
         {
-            return new APIGatewayProxyResponse
-            {
-                StatusCode = (int)HttpStatusCode.OK,
-                Body = "Removing folder"
-            };
-            var blogId = request?.PathParameters[ID_FOLDER_STRING_NAME];
-            if (string.IsNullOrEmpty(blogId))
-                blogId = request?.QueryStringParameters[ID_FOLDER_STRING_NAME];
-
-            if (string.IsNullOrEmpty(blogId))
+            var folderId = request?.PathParameters[ID_FOLDER_STRING_NAME];
+            
+            if (string.IsNullOrEmpty(folderId))
             {
                 return new APIGatewayProxyResponse
                 {
                     StatusCode = (int)HttpStatusCode.BadRequest,
-                    Body = "Missing required parameter blogId"
+                    Body = "Missing required parameter folder Id"
                 };
             }
 
-            context.Logger.LogLine($"Deleting folder with id {blogId}");
-            await this.DDBContext.DeleteAsync<Folder>(blogId);
+            context.Logger.LogLine($"Deleting folder with id {folderId}");
+            await this.DDBContext.DeleteAsync<Folder>(folderId);
 
             return new APIGatewayProxyResponse
             {
